@@ -6,6 +6,8 @@ from io import BytesIO
 import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
+from flask_migrate import Migrate
+
 
 # Load environment variables
 load_dotenv()
@@ -20,6 +22,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
 )
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
 
 # --- Model ---
 class Pledge(db.Model):
