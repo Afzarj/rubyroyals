@@ -182,6 +182,32 @@ def admin_list():
 
 @app.route('/admin/export', methods=['GET'])
 @admin_required
+def admin_list():
+    page = int(request.args.get('page', 1))
+    per_page = 12
+
+    # Get search query from request
+    search = request.args.get('search', '')
+
+    q = Pledge.query
+    if search:
+        q = q.filter(
+            (Pledge.name.ilike(f"%{search}%")) |
+            (Pledge.bill_no.ilike(f"%{search}%")) |
+            (Pledge.phone_number.ilike(f"%{search}%"))
+        )
+
+    q = q.order_by(Pledge.created_at.desc())
+    pagination = q.paginate(page=page, per_page=per_page, error_out=False)
+    return render_template('admin_list.html', pagination=pagination, search=search)
+
+def admin_delete(id):
+    pledge = Pledge.query.get_or_404(id)
+    db.session.delete(pledge)
+    db.session.commit()
+    flash("Entry deleted successfully", "info")
+    return redirect(url_for('admin_list'))
+
 def admin_export():
     pledges = Pledge.query.order_by(Pledge.created_at.desc()).all()
     rows = []
