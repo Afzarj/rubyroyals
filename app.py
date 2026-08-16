@@ -176,15 +176,6 @@ def admin_logout():
 def admin_list():
     page = int(request.args.get('page', 1))
     per_page = 12
-    q = Pledge.query.order_by(Pledge.created_at.desc())
-    pagination = q.paginate(page=page, per_page=per_page, error_out=False)
-    return render_template('admin_list.html', pagination=pagination)
-
-@app.route('/admin/export', methods=['GET'])
-@admin_required
-def admin_list():
-    page = int(request.args.get('page', 1))
-    per_page = 12
 
     # Get search query from request
     search = request.args.get('search', '')
@@ -201,6 +192,9 @@ def admin_list():
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)
     return render_template('admin_list.html', pagination=pagination, search=search)
 
+
+@app.route('/admin/delete/<int:id>', methods=['POST'])
+@admin_required
 def admin_delete(id):
     pledge = Pledge.query.get_or_404(id)
     db.session.delete(pledge)
@@ -208,6 +202,9 @@ def admin_delete(id):
     flash("Entry deleted successfully", "info")
     return redirect(url_for('admin_list'))
 
+
+@app.route('/admin/export', methods=['GET'])
+@admin_required
 def admin_export():
     pledges = Pledge.query.order_by(Pledge.created_at.desc()).all()
     rows = []
