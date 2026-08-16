@@ -1,0 +1,13 @@
+#repayment-schedule .row { margin-bottom: 0.5rem; }
+#repayment-details-block .form-text { font-size: 0.85rem; color: #6c757d; }
+
+.keyboard button {
+  min-width: 40px;
+  font-size: 1.2rem;
+}
+@media (max-width: 576px) {
+  .keyboard button {
+    min-width: 32px;
+    font-size: 1rem;
+  }
+}

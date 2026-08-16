@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Pledge Form</title>
+  <style>
+    label { display:block; margin-top:8px; }
+    .repay-row { margin-bottom:6px; }
+    .hidden { display:none; }
+    .required { color: red; }
+  </style>
+</head>
+<body>
+  <h3>Pledge Form</h3>
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <ul>
+      {% for cat, msg in messages %}
+        <li><strong>{{cat}}:</strong> {{msg}}</li>
+      {% endfor %}
+      </ul>
+    {% endif %}
+  {% endwith %}
+
+  <form method="post" action="{{ url_for('submit') }}">
+    <label>Name <span class="required">*</span><input name="name" required></label>
+    <label>Sex <span class="required">*</span>
+      <select name="sex" required>
+        <option value="">--select--</option>
+        <option>Male</option><option>Female</option><option>Other</option>
+      </select>
+    </label>
+    <label>Age <span class="required">*</span><input name="age" type="number" min="0" required></label>
+    <label>Father/Husband Name <span class="required">*</span><input name="father_or_husband" required></label>
+
+    <fieldset>
+      <legend>Family Details <span class="required">*</span></legend>
+      <label>Father/Husband Name <input name="family_father" required></label>
+      <label>Kids Name (comma separated) <input name="family_kids"></label>
+    </fieldset>
+
+    <label>Education <span class="required">*</span><input name="education" required></label>
+    <label>Address <span class="required">*</span><input name="address" required></label>
+    <label>Occupation <span class="required">*</span><input name="occupation" required></label>
+
+    <label>Intro (Relation or Friend) <span class="required">*</span>
+      <select name="intro" required>
+        <option value="">--select--</option>
+        <option>Relation</option><option>Friend</option>
+      </select>
+    </label>
+
+    <label>Pledge Details <span class="required">*</span><input name="pledge_details" required></label>
+    <label>Pledge Date <span class="required">*</span><input name="pledge_date" type="date" required></label>
+    <label>Pledge Amounts <span class="required">*</span><input name="pledge_amounts" type="number" step="0.01" required></label>
+    <label>Bill No <span class="required">*</span><input name="bill_no" required></label>
+
+    <label>Repayment <span class="required">*</span>
+      <select name="repayment" id="repayment" required>
+        <option value="">--select--</option>
+        <option>Full</option><option>Partial</option><option>Nill</option>
+      </select>
+    </label>
+
+    <div id="repayment-details-block" class="hidden">
+      <label>Repayment Details (0-9)
+        <select name="repayment_details" id="repayment_details">
+          <option value="">--select--</option>
+          {% for i in range(0,10) %}
+            <option value="{{i}}">{{i}}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <div id="repayment-schedule"></div>
+    </div>
+
+    <label>Total Grams pending <span class="required">*</span><input name="total_grams_pending" type="number" step="0.01" required></label>
+    <label>Phone Number <span class="required">*</span><input name="phone_number" required></label>
+    <label>Alternative Number <input name="alt_number"></label>
+    <label>Return Jewellary <input name="return_jewellary"></label>
+    <label>Balance Jewellary <input name="balance_jewellary"></label>
+    <label>HC Claim Form Number <input name="hc_claim_form_number"></label>
+    <label>Comments <textarea name="comments"></textarea></label>
+    <label>Remarks <textarea name="remarks"></textarea></label>
+
+    <button type="submit">Submit</button>
+  </form>
+
+  <p><a href="{{ url_for('export') }}">Export all to Excel</a></p>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const repayment = document.getElementById('repayment');
+  const detailsBlock = document.getElementById('repayment-details-block');
+  const detailsSelect = document.getElementById('repayment_details');
+  const scheduleDiv = document.getElementById('repayment-schedule');
+
+  function showHideRepayment() {
+    if (repayment.value === 'Full' || repayment.value === 'Partial') {
+      detailsBlock.classList.remove('hidden');
+    } else {
+      detailsBlock.classList.add('hidden');
+      detailsSelect.value = '';
+      scheduleDiv.innerHTML = '';
+    }
+  }
+
+  function buildSchedule(n) {
+    scheduleDiv.innerHTML = '';
+    n = parseInt(n) || 0;
+    for (let i=1;i<=n;i++){
+      const wrapper = document.createElement('div');
+      wrapper.className = 'repay-row';
+      wrapper.innerHTML = `
+        <label>Repayment ${i} Amount <input name="repay_amount_${i}" type="number" step="0.01" required></label>
+        <label>Repayment ${i} Date <input name="repay_date_${i}" type="date" required></label>
+      `;
+      scheduleDiv.appendChild(wrapper);
+    }
+  }
+
+  repayment.addEventListener('change', showHideRepayment);
+  detailsSelect.addEventListener('change', function(){ buildSchedule(this.value); });
+
+  // initial
+  showHideRepayment();
+});
+</script>
+</body>
+</html>

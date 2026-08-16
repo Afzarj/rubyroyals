@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<h4>Submissions</h4>
+<div class="mb-3">
+  <a class="btn btn-outline-secondary" href="{{ url_for('admin_export') }}">Export All to Excel</a>
+</div>
+
+<div class="row g-3">
+  {% for p in pagination.items %}
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between">
+          <h6 class="card-title mb-1">{{ p.name }} <small class="text-muted">#{{ p.id }}</small></h6>
+          <small class="text-muted">{{ p.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+        </div>
+        <p class="mb-1"><strong>Phone:</strong> {{ p.phone_number }} &nbsp; <strong>Amount:</strong> {{ p.pledge_amounts }}</p>
+        <p class="mb-1"><strong>Repayment:</strong> {{ p.repayment }} {% if p.repayment_schedule %}- {{ p.repayment_schedule|length }} installments{% endif %}</p>
+        <p class="mb-0 text-truncate"><strong>Details:</strong> {{ p.pledge_details }}</p>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<nav class="mt-4">
+  <ul class="pagination">
+    {% if pagination.has_prev %}
+      <li class="page-item"><a class="page-link" href="{{ url_for('admin_list', page=pagination.prev_num) }}">Previous</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Previous</span></li>
+    {% endif %}
+    <li class="page-item disabled"><span class="page-link">Page {{ pagination.page }} of {{ pagination.pages }}</span></li>
+    {% if pagination.has_next %}
+      <li class="page-item"><a class="page-link" href="{{ url_for('admin_list', page=pagination.next_num) }}">Next</a></li>
+    {% else %}
+      <li class="page-item disabled"><span class="page-link">Next</span></li>
+    {% endif %}
+  </ul>
+</nav>
+{% endblock %}
