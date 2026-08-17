@@ -1,60 +1,3 @@
-<!-- Tamil Keyboard Modal -->
-<div class="modal fade" id="tamilKeyboardModal" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">தமிழ் விசைப்பலகை (Tamil Keyboard)</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body">
-        <div class="keyboard d-flex flex-wrap gap-2">
-          <!-- Uyir (vowels) -->
-          <button type="button" class="btn btn-outline-secondary tamil-key">அ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">ஆ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">இ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">ஈ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">உ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">ஊ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">எ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">ஏ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">ஐ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">ஒ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">ஓ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">ஔ</button>
-
-          <!-- Example Uyirmei (க series) -->
-          <button type="button" class="btn btn-outline-secondary tamil-key">க</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">கா</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">கி</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">கீ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">கு</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">கூ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">கெ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">கே</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">கை</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">கொ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">கோ</button>
-          <button type="button" class="btn btn-outline-secondary tamil-key">கௌ</button>
-
-          <!-- Repeat similar blocks for other consonants (ங, ச, ஞ, ட, etc.) -->
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-<div class="form-check mb-3">
-  <input class="form-check-input" type="checkbox" id="toggleTamilKeyboard">
-  <label class="form-check-label" for="toggleTamilKeyboard">
-    Enable Tamil Keyboard
-  </label>
-  <button type="button" class="btn btn-sm btn-primary ms-2" id="openTamilKeyboard" style="display:none;" data-bs-toggle="modal" data-bs-target="#tamilKeyboardModal">
-    Open Keyboard
-  </button>
-</div>
-
-
-
-
 {% extends "base.html" %}
 {% block content %}
 <div class="card shadow-sm">
@@ -218,7 +161,6 @@
             <a class="btn btn-outline-secondary ms-2" href="{{ url_for('admin_export') }}">Export (admin)</a>
           </div>
           <div>
-            <button type="button" class="btn btn-secondary me-2" data-bs-toggle="modal" data-bs-target="#previewModal">Preview</button>
             <button type="submit" class="btn btn-primary">Submit Pledge</button>
           </div>
         </div>
