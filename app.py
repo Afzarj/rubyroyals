@@ -1,11 +1,11 @@
 import os
 import io
-import pandas as pd
 from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from openpyxl import Workbook
 from datetime import datetime
 
 app = Flask(__name__)
@@ -163,9 +163,18 @@ def export_excel():
             "Remarks": p.remarks
         })
 
-    df = pd.DataFrame(data)
     output = io.BytesIO()
-    df.to_excel(output, index=False)
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Pledges"
+
+    if data:
+        headers = list(data[0].keys())
+        worksheet.append(headers)
+        for row in data:
+            worksheet.append([row[header] for header in headers])
+
+    workbook.save(output)
     output.seek(0)
     filename = f"pledges_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
     return send_file(output, download_name=filename, as_attachment=True)
