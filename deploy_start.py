@@ -49,7 +49,14 @@ if __name__ == "__main__":
     subprocess.run([sys.executable, "-m", "flask", "db", "upgrade"], check=True)
 
     port = os.environ.get("PORT", "10000")
-    os.execvp(
-        "gunicorn",
-        ["gunicorn", "--bind", f"0.0.0.0:{port}", "app:app"],
+    os.execv(
+        sys.executable,
+        [
+            sys.executable,
+            "-m",
+            "gunicorn",
+            "--bind",
+            f"0.0.0.0:{port}",
+            "app:app",
+        ],
     )
