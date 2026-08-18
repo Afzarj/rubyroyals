@@ -2,5 +2,5 @@ Flask==3.0.3
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.5
 openpyxl==3.1.5
-psycopg2-binary==2.9.9   # needed for PostgreSQL on Render
+psycopg[binary]>=3.2.0   # PostgreSQL driver compatible with Python 3.14
 gunicorn==22.0.0
