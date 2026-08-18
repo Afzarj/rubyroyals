@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Form Submitted Successfully!</h2>
+{% if session.get('is_admin') %}
+    <a href="{{ url_for('export_excel') }}">Download Excel</a>
+{% else %}
+    <p>Excel export available only for admin.</p>
+{% endif %}
+<a href="{{ url_for('pledge_form') }}">Submit Another</a>
+{% endblock %}

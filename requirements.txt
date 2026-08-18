@@ -1,8 +1,7 @@
-Flask
-Flask-SQLAlchemy
-pandas
-openpyxl
-python-dotenv
-gunicorn
-psycopg2-binary
-Flask-Migrate
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.5
+pandas==2.2.2
+openpyxl==3.1.5
+psycopg2-binary==2.9.9   # needed for PostgreSQL on Render
+gunicorn==22.0.0

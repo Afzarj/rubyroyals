@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>I.P.No.11 of 2019 - Insolvency of Syed Hifzur Rahman Biyabani</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</head>
+<body>
+    <header class="navbar">
+        <h1>Ruby Royals Victims</h1>
+        <nav>
+            {% if session.get('is_admin') %}
+                <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+                <a href="{{ url_for('admin_logout') }}">Logout</a>
+            {% else %}
+                <a href="{{ url_for('admin_login') }}">Admin Login</a>
+            {% endif %}
+        </nav>
+    </header>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

@@ -1,252 +1,340 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, send_file, flash, session
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.dialects.postgresql import JSON
-from io import BytesIO
+import io
 import pandas as pd
 from datetime import datetime
-from dotenv import load_dotenv
+from functools import wraps
+from flask import Flask, render_template, request, redirect, url_for, send_file, flash, session
+from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from datetime import datetime
 
-
-# Load environment variables
-load_dotenv()
-
-app = Flask(__name__, static_folder='static', template_folder='templates')
-app.secret_key = os.environ.get('FLASK_SECRET', os.urandom(24))
-
-# Use PostgreSQL in production (Render provides DATABASE_URL)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
-    'DATABASE_URL',
-    'sqlite:///pledges.db'  # fallback for local dev
+app = Flask(__name__)
+app.secret_key = (
+    os.environ.get("FLASK_SECRET")
+    or os.environ.get("SECRET_KEY")
+    or "dev_secret"
 )
+
+# --- Database Config ---
+# Use SQLite locally, PostgreSQL on Render
+database_url = os.environ.get("DATABASE_URL", "sqlite:///pledges.db")
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-
-# --- Model ---
+# --- Models ---
 class Pledge(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, nullable=False)
-    sex = db.Column(db.String, nullable=False)
-    age = db.Column(db.Integer, nullable=False)
-    father_or_husband = db.Column(db.String, nullable=False)
-    family_details = db.Column(JSON, nullable=False)
-    education = db.Column(db.String, nullable=False)
-    address = db.Column(db.String, nullable=False)
-    occupation = db.Column(db.String, nullable=False)
-    intro = db.Column(db.String, nullable=False)
-    pledge_details = db.Column(db.String, nullable=False)
-    pledge_date = db.Column(db.Date, nullable=False)
-    pledge_amounts = db.Column(db.Float, nullable=False)
-    bill_no = db.Column(db.String, nullable=False, unique=True)  # enforce uniqueness
-    repayment = db.Column(db.String, nullable=False)
-    repayment_details = db.Column(db.Integer, nullable=True)
-    repayment_schedule = db.Column(JSON, nullable=True)
-    total_grams_pending = db.Column(db.Float, nullable=False)
-    phone_number = db.Column(db.String, nullable=False)
-    alt_number = db.Column(db.String, nullable=True)
-    return_jewellary = db.Column(db.String, nullable=True)
-    balance_jewellary = db.Column(db.String, nullable=True)
-    hc_claim_form_number = db.Column(db.String, nullable=True)
-    comments = db.Column(db.String, nullable=True)
-    remarks = db.Column(db.String, nullable=True)
-    aadhar_number = db.Column(db.String, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    bill_no = db.Column(db.String(50), unique=True, nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    gender = db.Column(db.String(20))
+    age = db.Column(db.Integer)
+    father_name = db.Column(db.String(100))
+    family_name = db.Column(db.String(100))
+    kids_names = db.Column(db.String(200))
+    education = db.Column(db.String(100))
+    occupation = db.Column(db.String(100))
+    address = db.Column(db.String(200))
+    phone = db.Column(db.String(10), nullable=False)
+    alt_number = db.Column(db.String(10))
+    aadhar = db.Column(db.String(12), nullable=False)
+    hc_claim_form = db.Column(db.String(50))
+    intro = db.Column(db.String(20))
+    num_ornaments = db.Column(db.Integer)
+    ornaments_details = db.Column(db.Text)  # JSON string of ornaments
+    pledge_date = db.Column(db.Date)
+    total_amount = db.Column(db.Float)
+    total_grams = db.Column(db.Float)
+    return_jewellery = db.Column(db.Float, default=0)
+    balance_jewellery = db.Column(db.Float)
+    repayment = db.Column(db.String(20))
+    repayment_details = db.Column(db.Text)  # JSON string of repayments
+    remarks = db.Column(db.Text)
 
-# --- Helpers ---
-def parse_date(s):
-    try:
-        return datetime.strptime(s, "%Y-%m-%d").date()
-    except Exception:
-        return None
-
-# --- Routes ---
-@app.route('/', methods=['GET'])
-def form():
-    return render_template('form_modern.html')
-
-@app.route('/submit', methods=['POST'])
-def submit():
-    required = [
-        'name','sex','age','father_or_husband','family_father','education',
-        'address','occupation','intro','pledge_details','pledge_date',
-        'pledge_amounts','bill_no','repayment','total_grams_pending','phone_number','aadhar_number'
-    ]
-    for r in required:
-        if not request.form.get(r):
-            flash(f"Missing required field: {r}", "danger")
-            return redirect(url_for('form'))
-
-    # Duplicate BILL_NO check
-    bill_no = request.form.get('bill_no')
-    if Pledge.query.filter_by(bill_no=bill_no).first():
-        flash(f"Duplicate BILL_NO: {bill_no} already exists", "danger")
-        return redirect(url_for('form'))
-
-    family = {
-        "father_or_husband": request.form.get('family_father'),
-        "kids": [k.strip() for k in request.form.get('family_kids','').split(',') if k.strip()]
-    }
-
-    repayment = request.form.get('repayment')
-    repayment_details = request.form.get('repayment_details')
-    schedule = None
-    if repayment in ('Full','Partial') and repayment_details:
-        try:
-            n = int(repayment_details)
-        except Exception:
-            n = 0
-        schedule = []
-        for i in range(1, n+1):
-            amt = request.form.get(f'repay_amount_{i}')
-            date = request.form.get(f'repay_date_{i}')
-            if not amt or not date:
-                flash("Missing repayment schedule fields", "danger")
-                return redirect(url_for('form'))
-            try:
-                amt_val = float(amt)
-            except Exception:
-                flash("Invalid repayment amount", "danger")
-                return redirect(url_for('form'))
-            schedule.append({"amount": amt_val, "date": date})
-
-    p = Pledge(
-        name=request.form.get('name'),
-        sex=request.form.get('sex'),
-        age=int(request.form.get('age')),
-        aadhar_number=request.form.get('aadhar_number'),
-        father_or_husband=request.form.get('father_or_husband'),
-        family_details=family,
-        education=request.form.get('education'),
-        address=request.form.get('address'),
-        occupation=request.form.get('occupation'),
-        intro=request.form.get('intro'),
-        pledge_details=request.form.get('pledge_details'),
-        pledge_date=parse_date(request.form.get('pledge_date')),
-        pledge_amounts=float(request.form.get('pledge_amounts')),
-        bill_no=bill_no,
-        repayment=repayment,
-        repayment_details=int(repayment_details) if repayment_details else None,
-        repayment_schedule=schedule,
-        total_grams_pending=float(request.form.get('total_grams_pending')),
-        phone_number=request.form.get('phone_number'),
-        alt_number=request.form.get('alt_number'),
-        return_jewellary=request.form.get('return_jewellary'),
-        balance_jewellary=request.form.get('balance_jewellary'),
-        hc_claim_form_number=request.form.get('hc_claim_form_number'),
-        comments=request.form.get('comments'),
-        remarks=request.form.get('remarks')
-    )
-    db.session.add(p)
-    db.session.commit()
-    flash("Pledge saved successfully", "success")
-    return redirect(url_for('form'))
-
-# --- Admin auth ---
+# --- Auth Decorator ---
 def admin_required(fn):
+    @wraps(fn)
     def wrapper(*args, **kwargs):
-        if session.get('is_admin'):
+        if session.get("is_admin"):
             return fn(*args, **kwargs)
-        return redirect(url_for('admin_login', next=request.path))
-    wrapper.__name__ = fn.__name__
+        flash("Admin login required", "danger")
+        return redirect(url_for("admin_login", next=request.path))
     return wrapper
 
-@app.route('/admin/login', methods=['GET','POST'])
-def admin_login():
-    if request.method == 'POST':
-        pw = request.form.get('password','')
-        if pw and pw == os.environ.get('ADMIN_PASSWORD', 'admin123'):
-            session['is_admin'] = True
-            flash("Logged in as admin", "success")
-            nxt = request.args.get('next') or url_for('admin_list')
-            return redirect(nxt)
-        flash("Invalid password", "danger")
-    return render_template('admin_login.html')
+# --- Routes ---
+@app.route("/", methods=["GET", "POST"])
+def pledge_form():
+    if request.method == "POST":
+        bill_no = request.form.get("BillNo")
+        phone = request.form.get("PhoneNumber")
+        aadhar = request.form.get("AadharNumber")
 
-@app.route('/admin/logout')
-def admin_logout():
-    session.pop('is_admin', None)
-    flash("Logged out", "info")
-    return redirect(url_for('form'))
+        # Validations
+        if Pledge.query.filter_by(bill_no=bill_no).first():
+            return render_template("form.html", error=f"Duplicate Bill No {bill_no} already exists")
 
-@app.route('/admin', methods=['GET'])
-@admin_required
-def admin_list():
-    page = int(request.args.get('page', 1))
-    per_page = 12
+        if not phone.isdigit() or len(phone) != 10:
+            return render_template("form.html", error="Phone number must be exactly 10 digits")
 
-    # Get search query from request
-    search = request.args.get('search', '')
-
-    q = Pledge.query
-    if search:
-        q = q.filter(
-            (Pledge.name.ilike(f"%{search}%")) |
-            (Pledge.bill_no.ilike(f"%{search}%")) |
-            (Pledge.phone_number.ilike(f"%{search}%"))
+        if not aadhar.isdigit() or len(aadhar) != 12:
+            return render_template("form.html", error="Aadhar number must be exactly 12 digits")
+        pledge_date_str = request.form.get("PledgeDate")
+        pledge_date = None
+        if pledge_date_str:
+            try:
+                pledge_date = datetime.strptime(pledge_date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return render_template("form.html", error="Invalid date format")
+        pledge = Pledge(
+            bill_no=bill_no,
+            name=request.form.get("Name"),
+            gender=request.form.get("Gender"),
+            age=request.form.get("Age"),
+            father_name=request.form.get("FatherName"),
+            family_name=request.form.get("FamilyName"),
+            kids_names=",".join([request.form.get("KidsNames1",""), request.form.get("KidsNames2",""), request.form.get("KidsNames3","")]),
+            education=request.form.get("Education"),
+            occupation=request.form.get("Occupation"),
+            address=request.form.get("Address"),
+            phone=phone,
+            alt_number=request.form.get("AltNumber"),
+            aadhar=aadhar,
+            hc_claim_form=request.form.get("HCClaimFormNumber"),
+            intro=request.form.get("Intro"),
+            num_ornaments=request.form.get("NumOrnaments"),
+            ornaments_details=str({k:v for k,v in request.form.items() if "Ornament" in k or "Grams" in k}),
+            pledge_date=pledge_date,
+            total_amount=float(request.form.get("TotalAmounts")),
+            total_grams=float(request.form.get("TotalGrams")),
+            return_jewellery=float(request.form.get("ReturnJewellery")),
+            balance_jewellery=float(request.form.get("BalanceJewellery")),
+            repayment=request.form.get("Repayment"),
+            repayment_details=str({k:v for k,v in request.form.items() if "Repay" in k}),
+            remarks=request.form.get("Remarks")
         )
+        db.session.add(pledge)
+        db.session.commit()
+        return redirect(url_for("success"))
 
-    q = q.order_by(Pledge.created_at.desc())
-    pagination = q.paginate(page=page, per_page=per_page, error_out=False)
-    return render_template('admin_list.html', pagination=pagination, search=search)
+    return render_template("form.html")
 
+@app.route("/success")
+def success():
+    return render_template("success.html")
 
-@app.route('/admin/delete/<int:id>', methods=['POST'])
+@app.route("/export")
 @admin_required
-def admin_delete(id):
-    pledge = Pledge.query.get_or_404(id)
-    db.session.delete(pledge)
-    db.session.commit()
-    flash("Entry deleted successfully", "info")
-    return redirect(url_for('admin_list'))
+def export_excel():
+    pledges = Pledge.query.all()
 
-
-@app.route('/admin/export', methods=['GET'])
-@admin_required
-def admin_export():
-    pledges = Pledge.query.order_by(Pledge.created_at.desc()).all()
-    rows = []
-    for pl in pledges:
-        rows.append({
-            "ID": pl.id,
-            "NAME": pl.name,
-            "GENDER": pl.sex,
-            "AGE": pl.age,
-            "AADHAR_NUMBER": pl.aadhar_number,
-            "FATHER_OR_HUSBAND": pl.father_or_husband,
-            "FAMILY_HUSBAND_OR_WIFE": pl.family_details.get("father_or_husband"),
-            "FAMILY_KIDS": ",".join(pl.family_details.get("kids", [])),
-            "EDUCATION": pl.education,
-            "ADDRESS": pl.address,
-            "OCCUPATION": pl.occupation,
-            "INTRO": pl.intro,
-            "BILL_NO": pl.bill_no,
-            "HC_CLAIM_FORM_NUMBER": pl.hc_claim_form_number,
-            "PLEDGE_DETAILS": pl.pledge_details,
-            "PLEDGE_DATE": pl.pledge_date,
-            "PLEDGE_AMOUNTS": pl.pledge_amounts,
-            "REPAYMENT": pl.repayment,
-            "REPAYMENT_DETAILS": pl.repayment_details,
-            "REPAYMENT_SCHEDULE": str(pl.repayment_schedule),
-            "TOTAL_GRAMS_PENDING": pl.total_grams_pending,
-            "PHONE_NUMBER": pl.phone_number,
-            "ALT_NUMBER": pl.alt_number,
-            "RETURN_JEWELLARY": pl.return_jewellary,
-            "BALANCE_JEWELLARY": pl.balance_jewellary,
-            "COMMENTS": pl.comments,
-            "REMARKS": pl.remarks,
-            "CREATED_AT": pl.created_at
+    # Build a list of dicts with ALL fields
+    data = []
+    for p in pledges:
+        data.append({
+            "ID": p.id,
+            "BillNo": p.bill_no,
+            "Name": p.name,
+            "Gender": p.gender,
+            "Age": p.age,
+            "FatherName": p.father_name,
+            "FamilyName": p.family_name,
+            "KidsNames": p.kids_names,
+            "Education": p.education,
+            "Occupation": p.occupation,
+            "Address": p.address,
+            "Phone": p.phone,
+            "AltNumber": p.alt_number,
+            "Aadhar": p.aadhar,
+            "HCClaimForm": p.hc_claim_form,
+            "Intro": p.intro,
+            "NumOrnaments": p.num_ornaments,
+            "OrnamentsDetails": p.ornaments_details,
+            "PledgeDate": p.pledge_date,
+            "TotalAmount": p.total_amount,
+            "TotalGrams": p.total_grams,
+            "ReturnJewellery": p.return_jewellery,
+            "BalanceJewellery": p.balance_jewellery,
+            "Repayment": p.repayment,
+            "RepaymentDetails": p.repayment_details,
+            "Remarks": p.remarks
         })
-    df = pd.DataFrame(rows)
-    output = BytesIO()
-    df.to_excel(output, index=False, engine='openpyxl')
+
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    df.to_excel(output, index=False)
     output.seek(0)
     filename = f"pledges_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
-    return send_file(
-        output,
-        download_name=filename,
-        as_attachment=True,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    )
+    return send_file(output, download_name=filename, as_attachment=True)
+
+
+@app.route("/admin/login", methods=["GET","POST"])
+def admin_login():
+    if request.method == "POST":
+        pw = request.form.get("password")
+        if pw == os.environ.get("ADMIN_PASSWORD","admin123"):
+            session["is_admin"] = True
+            return redirect(url_for("admin_dashboard"))
+        flash("Invalid password","danger")
+    return render_template("admin_login.html")
+
+@app.route("/admin/logout")
+def admin_logout():
+    session.pop("is_admin", None)
+    return redirect(url_for("pledge_form"))
+
+@app.route("/admin/dashboard")
+@admin_required
+def admin_dashboard():
+    q = request.args.get("q", "").lower()
+    all_pledges = Pledge.query.all()
+    selected_year = request.args.get("year", "")
+    pledges = all_pledges
+
+    if q:
+        pledges = [p for p in pledges if q in str(p.__dict__).lower()]
+
+    if selected_year.isdigit():
+        pledges = [p for p in pledges if p.pledge_date and p.pledge_date.year == int(selected_year)]
+
+    total_bills = len(pledges)
+    total_amount = round(sum(p.total_amount or 0 for p in pledges), 2)
+    total_grams = round(sum(p.total_grams or 0 for p in pledges), 2)
+    outstanding_grams = round(sum(p.balance_jewellery or 0 for p in pledges), 2)
+    average_amount = round(total_amount / total_bills, 2) if total_bills else 0
+    average_age = round(sum(p.age or 0 for p in pledges) / total_bills, 1) if total_bills else 0
+    repayment_counts = {"Full": 0, "Partial": 0, "Nil": 0}
+    for p in pledges:
+        if p.repayment in repayment_counts:
+            repayment_counts[p.repayment] += 1
+
+    gender_counts = {"Male": 0, "Female": 0, "Other": 0}
+    for p in pledges:
+        if p.gender in gender_counts:
+            gender_counts[p.gender] += 1
+
+    monthly_counts = {}
+    for pledge in pledges:
+        if pledge.pledge_date:
+            month_key = pledge.pledge_date.strftime("%Y-%m")
+            monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
+    monthly_activity = [
+        {"label": datetime.strptime(month, "%Y-%m").strftime("%b %Y"), "count": monthly_counts[month]}
+        for month in sorted(monthly_counts)[-6:]
+    ]
+    max_monthly_count = max((item["count"] for item in monthly_activity), default=1)
+    repayment_rate = round((repayment_counts["Full"] / total_bills) * 100) if total_bills else 0
+
+    yearly_source = all_pledges
+    if q:
+        yearly_source = [p for p in yearly_source if q in str(p.__dict__).lower()]
+    yearly_groups = {}
+    for pledge in yearly_source:
+        if pledge.pledge_date:
+            year = pledge.pledge_date.year
+            yearly_groups.setdefault(year, []).append(pledge)
+
+    yearly_metrics = []
+    previous_count = None
+    for year in sorted(yearly_groups):
+        year_records = yearly_groups[year]
+        year_count = len(year_records)
+        year_repayment = {"Full": 0, "Partial": 0, "Nil": 0}
+        for pledge in year_records:
+            if pledge.repayment in year_repayment:
+                year_repayment[pledge.repayment] += 1
+        yearly_metrics.append({
+            "year": year,
+            "count": year_count,
+            "amount": round(sum(p.total_amount or 0 for p in year_records), 2),
+            "grams": round(sum(p.total_grams or 0 for p in year_records), 2),
+            "returned": round(sum(p.return_jewellery or 0 for p in year_records), 2),
+            "balance": round(sum(p.balance_jewellery or 0 for p in year_records), 2),
+            "full": year_repayment["Full"],
+            "partial": year_repayment["Partial"],
+            "nil": year_repayment["Nil"],
+            "growth": round(((year_count - previous_count) / previous_count) * 100, 1) if previous_count else None
+        })
+        previous_count = year_count
+
+    year_options = sorted({item["year"] for item in yearly_metrics}, reverse=True)
+    max_year_count = max((item["count"] for item in yearly_metrics), default=1)
+    all_time_count = len(all_pledges)
+    all_time_amount = round(sum(p.total_amount or 0 for p in all_pledges), 2)
+    all_time_grams = round(sum(p.total_grams or 0 for p in all_pledges), 2)
+
+    return render_template("admin_dashboard.html",
+                           records=pledges,
+                           total_bills=total_bills,
+                           total_amount=total_amount,
+                           total_grams=total_grams,
+                           outstanding_grams=outstanding_grams,
+                           average_amount=average_amount,
+                           average_age=average_age,
+                           repayment_counts=repayment_counts,
+                           repayment_rate=repayment_rate,
+                           gender_counts=gender_counts,
+                           monthly_activity=monthly_activity,
+                           max_monthly_count=max_monthly_count,
+                           search_query=request.args.get("q", ""),
+                           selected_year=selected_year,
+                           year_options=year_options,
+                           yearly_metrics=yearly_metrics,
+                           max_year_count=max_year_count,
+                           all_time_count=all_time_count,
+                           all_time_amount=all_time_amount,
+                           all_time_grams=all_time_grams)
+@app.route("/admin/delete/<int:pledge_id>")
+@admin_required
+def admin_delete(pledge_id):
+    pledge = Pledge.query.get_or_404(pledge_id)
+    db.session.delete(pledge)
+    db.session.commit()
+    flash("Pledge deleted", "info")
+    return redirect(url_for("admin_dashboard"))
+
+@app.route("/admin/edit/<int:pledge_id>", methods=["GET", "POST"])
+@admin_required
+def admin_edit(pledge_id):
+    pledge = Pledge.query.get_or_404(pledge_id)
+    if request.method == "POST":
+        pledge.gender = request.form.get("Gender")
+        pledge.name = request.form.get("Name")
+        pledge.age = request.form.get("Age") or None
+        pledge.father_name = request.form.get("FatherName")
+        pledge.family_name = request.form.get("FamilyName")
+        pledge.kids_names = ",".join([
+            request.form.get("KidsNames1", ""),
+            request.form.get("KidsNames2", ""),
+            request.form.get("KidsNames3", "")
+        ])
+        pledge.education = request.form.get("Education")
+        pledge.occupation = request.form.get("Occupation")
+        pledge.address = request.form.get("Address")
+        pledge.phone = request.form.get("PhoneNumber")
+        pledge.alt_number = request.form.get("AltNumber")
+        pledge.aadhar = request.form.get("AadharNumber")
+        pledge.hc_claim_form = request.form.get("HCClaimFormNumber")
+        pledge.intro = request.form.get("Intro")
+        pledge.num_ornaments = request.form.get("NumOrnaments") or None
+        pledge.ornaments_details = str({k: v for k, v in request.form.items() if "Ornament" in k or "Grams" in k})
+        pledge.pledge_date = datetime.strptime(request.form.get("PledgeDate"), "%Y-%m-%d").date() if request.form.get("PledgeDate") else None
+        pledge.total_amount = float(request.form.get("TotalAmounts") or 0)
+        pledge.total_grams = float(request.form.get("TotalGrams") or 0)
+        pledge.return_jewellery = float(request.form.get("ReturnJewellery") or 0)
+        pledge.balance_jewellery = float(request.form.get("BalanceJewellery") or 0)
+        pledge.repayment = request.form.get("Repayment")
+        pledge.repayment_details = str({k: v for k, v in request.form.items() if "Repay" in k})
+        pledge.remarks = request.form.get("Remarks")
+        db.session.commit()
+        flash("Pledge updated", "success")
+        return redirect(url_for("admin_dashboard"))
+    return render_template("form.html", data=pledge, edit=True)
+
+
+
+if __name__ == "__main__":
+    app.run(debug=os.environ.get("FLASK_DEBUG", "0") == "1")
