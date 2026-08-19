@@ -55,6 +55,7 @@ class Pledge(db.Model):
     balance_jewellery = db.Column(db.Float)
     repayment = db.Column(db.String(20))
     repayment_details = db.Column(db.Text)  # JSON string of repayments
+    repayment_total_amount = db.Column(db.Float, default=0)
     remarks = db.Column(db.Text)
 
 # --- Auth Decorator ---
@@ -84,6 +85,11 @@ def pledge_form():
 
         if not aadhar.isdigit() or len(aadhar) != 12:
             return render_template("form.html", error="Aadhar number must be exactly 12 digits")
+        repayment_total_amount = sum(
+            float(value or 0)
+            for key, value in request.form.items()
+            if key.startswith("RepayAmount")
+        )
         pledge_date_str = request.form.get("PledgeDate")
         pledge_date = None
         if pledge_date_str:
@@ -116,6 +122,7 @@ def pledge_form():
             balance_jewellery=float(request.form.get("BalanceJewellery")),
             repayment=request.form.get("Repayment"),
             repayment_details=str({k:v for k,v in request.form.items() if "Repay" in k}),
+            repayment_total_amount=round(repayment_total_amount, 2),
             remarks=request.form.get("Remarks")
         )
         db.session.add(pledge)
@@ -162,6 +169,7 @@ def export_excel():
             "BalanceJewellery": p.balance_jewellery,
             "Repayment": p.repayment,
             "RepaymentDetails": p.repayment_details,
+            "RepaymentTotalAmount": p.repayment_total_amount or 0,
             "Remarks": p.remarks
         })
 
@@ -339,6 +347,11 @@ def admin_edit(pledge_id):
         pledge.balance_jewellery = float(request.form.get("BalanceJewellery") or 0)
         pledge.repayment = request.form.get("Repayment")
         pledge.repayment_details = str({k: v for k, v in request.form.items() if "Repay" in k})
+        pledge.repayment_total_amount = round(sum(
+            float(value or 0)
+            for key, value in request.form.items()
+            if key.startswith("RepayAmount")
+        ), 2)
         pledge.remarks = request.form.get("Remarks")
         db.session.commit()
         flash("Pledge updated", "success")
