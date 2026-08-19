@@ -8,7 +8,7 @@
 </head>
 <body>
     <header class="navbar">
-        <h1>Ruby Royals Victims</h1>
+        <h1><a href="{{ url_for('admin_dashboard' if session.get('is_admin') else 'pledge_form') }}">Ruby Royals Victims</a></h1>
         <nav>
             {% if session.get('is_admin') %}
                 <a href="{{ url_for('admin_dashboard') }}">Dashboard</a>
@@ -19,6 +19,15 @@
         </nav>
     </header>
     <main>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
         {% block content %}{% endblock %}
     </main>
 </body>

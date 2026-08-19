@@ -9,6 +9,10 @@
         <p class="dashboard-intro">Monitor pledge activity, repayment progress, and jewellery balances from one place.</p>
       </div>
       <div class="dashboard-actions">
+        <form class="import-form" method="post" action="{{ url_for('import_excel') }}" enctype="multipart/form-data">
+          <label class="dashboard-button dashboard-button-muted import-label" for="excel-upload">Import .xlsx</label>
+          <input id="excel-upload" name="excel_file" type="file" accept=".xlsx" required onchange="this.form.submit()">
+        </form>
         <a class="dashboard-button dashboard-button-primary" href="{{ url_for('export_excel') }}"><span aria-hidden="true">↓</span> Export records</a>
         <a class="dashboard-button dashboard-button-muted" href="{{ url_for('admin_logout') }}">Log out</a>
       </div>
@@ -32,24 +36,24 @@
 
     <section class="metric-grid" aria-label="Key metrics">
       <article class="metric-card metric-card-accent">
-        <div class="metric-label">Total pledges</div>
+        <div class="metric-label">Total Pledges Counts</div>
         <div class="metric-value">{{ total_bills }}</div>
         <div class="metric-note">Active records in view</div>
       </article>
       <article class="metric-card">
-        <div class="metric-label">Total value</div>
+        <div class="metric-label">Total Pledge Value</div>
         <div class="metric-value">INR {{ "%.2f"|format(total_amount) }}</div>
         <div class="metric-note">Average INR {{ "%.2f"|format(average_amount) }} per pledge</div>
       </article>
       <article class="metric-card">
-        <div class="metric-label">Pledged weight</div>
-        <div class="metric-value">{{ "%.2f"|format(total_grams) }} <small>g</small></div>
-        <div class="metric-note">{{ "%.2f"|format(outstanding_grams) }} g balance remaining</div>
+        <div class="metric-label">Total Repaid Amount</div>
+        <div class="metric-value">INR {{ "%.2f"|format(total_repaid_amount) }}</div>
+        <div class="metric-note">Repayment value in current view</div>
       </article>
       <article class="metric-card">
-        <div class="metric-label">Full repayment</div>
-        <div class="metric-value">{{ repayment_rate }}<small>%</small></div>
-        <div class="metric-note">{{ repayment_counts['Full'] }} fully paid records</div>
+        <div class="metric-label">Total Pledged weight</div>
+        <div class="metric-value">{{ "%.2f"|format(total_grams) }} <small>g</small></div>
+        <div class="metric-note">{{ "%.2f"|format(outstanding_grams) }} g balance remaining</div>
       </article>
     </section>
 
@@ -58,23 +62,28 @@
         <div class="panel-heading">
           <div>
             <h3>Pledge activity</h3>
-            <p>Monthly records across the latest available periods</p>
+            <p>Pledge, repayment, and jewellery totals in the current view</p>
           </div>
-          <span class="panel-kicker">Last 6 periods</span>
+          <span class="panel-kicker">Current view</span>
         </div>
-        {% if monthly_activity %}
-        <div class="bar-chart" aria-label="Monthly pledge activity chart">
-          {% for item in monthly_activity %}
-          <div class="bar-column">
-            <span class="bar-count">{{ item.count }}</span>
-            <div class="bar-track"><div class="bar-fill" style="height: {{ ((item.count / max_monthly_count) * 100)|round(0) }}%"></div></div>
-            <span class="bar-label">{{ item.label }}</span>
+        <div class="activity-metric-groups" aria-label="Pledge activity totals">
+          <div class="activity-metric-group">
+            <h4>Jewellery</h4>
+            <div class="activity-metrics">
+              <div><span>Total Grams</span><strong>{{ "%.2f"|format(total_grams) }} g</strong></div>
+              <div><span>Returned Grams</span><strong>{{ "%.2f"|format(total_returned_grams) }} g</strong></div>
+              <div><span>Balance Grams</span><strong>{{ "%.2f"|format(outstanding_grams) }} g</strong></div>
+            </div>
           </div>
-          {% endfor %}
+          <div class="activity-metric-group">
+            <h4>Amounts</h4>
+            <div class="activity-metrics">
+              <div><span>Total Pledge Amount</span><strong>INR {{ "%.2f"|format(total_amount) }}</strong></div>
+              <div><span>Total Repaid Amount</span><strong>INR {{ "%.2f"|format(total_repaid_amount) }}</strong></div>
+              <div><span>Balance Amount</span><strong>INR {{ "%.2f"|format(total_balance_amount) }}</strong></div>
+            </div>
+          </div>
         </div>
-        {% else %}
-        <div class="empty-chart">Pledge dates will appear here as records are added.</div>
-        {% endif %}
       </article>
 
       <article class="dashboard-panel">
@@ -139,18 +148,18 @@
       </div>
       <div class="table-wrap year-table-wrap">
         <table class="records-table year-table">
-          <thead><tr><th>Year</th><th>Pledges</th><th>Total amount</th><th>Pledged grams</th><th>Returned</th><th>Balance</th><th>Full / Partial / Nil</th><th>Growth</th></tr></thead>
+          <thead><tr><th>Year</th><th>Pledges</th><th>Total amount</th><th>Total Repaid Amount</th><th>Pledged grams</th><th>Returned</th><th>Balance</th><th>Full / Partial / Nil</th></tr></thead>
           <tbody>
           {% for item in yearly_metrics|reverse %}
           <tr>
             <td><strong>{{ item.year }}</strong></td>
             <td>{{ item.count }}</td>
             <td>INR {{ "%.2f"|format(item.amount) }}</td>
+            <td>INR {{ "%.2f"|format(item.repaid_amount) }}</td>
             <td>{{ "%.2f"|format(item.grams) }} g</td>
             <td>{{ "%.2f"|format(item.returned) }} g</td>
             <td>{{ "%.2f"|format(item.balance) }} g</td>
             <td>{{ item.full }} / {{ item.partial }} / {{ item.nil }}</td>
-            <td>{% if item.growth is not none %}{{ "%+.1f"|format(item.growth) }}%{% else %}—{% endif %}</td>
           </tr>
           {% endfor %}
           </tbody>
